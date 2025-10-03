@@ -29,7 +29,7 @@
       margin: 20px auto; 
       border-radius: 12px; 
       border: 2px solid #00796b; 
-      display: none; /* hidden until an image is uploaded */
+      display: none; 
     }
     .progress-bar { width: 80%; margin: 10px auto; background: #eee; border-radius: 10px; overflow: hidden; height: 25px; }
     .progress-fill { height: 100%; color: white; text-align: right; padding-right: 5px; line-height: 25px; width: 0; transition: width 1s; }
@@ -53,9 +53,10 @@
 <div class="progress-bar"><div id="malignantBar" class="progress-fill malignant">0%</div></div>
 
 <script>
-const URL = "./"; // model.json, metadata.json, weights.bin are in the same folder
+const URL = "./"; 
 let model, maxPredictions;
 
+// Load Teachable Machine model
 async function loadModel() {
     const modelURL = URL + "model.json";
     const metadataURL = URL + "metadata.json";
@@ -67,14 +68,20 @@ loadModel();
 
 let uploadedFile = null;
 const preview = document.getElementById("previewImage");
+let hiddenImage = new Image(); // hidden copy used for prediction
 
+// Handle upload
 document.getElementById("uploadImage").addEventListener("change", function(e){
     uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
 
-    // Show the image immediately
-    preview.src = URL.createObjectURL(uploadedFile);
-    preview.style.display = "block";
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        preview.src = event.target.result;
+        preview.style.display = "block";   // always show uploaded image
+        hiddenImage.src = event.target.result; // copy for model
+    }
+    reader.readAsDataURL(uploadedFile);
 
     // Reset results
     document.getElementById("result").innerHTML = "Ready to analyze. Click 'Show Results'.";
@@ -84,18 +91,18 @@ document.getElementById("uploadImage").addEventListener("change", function(e){
     document.getElementById("malignantBar").textContent = "0%";
 });
 
+// Prediction button
 document.getElementById("showButton").addEventListener("click", async function(){
     if(!uploadedFile) { alert("Please upload an image first"); return; }
     if(!model) { alert("Model still loading. Please wait a moment."); return; }
 
-    // Wait until image fully loads
+    // Wait until hidden image fully loads
     await new Promise(r => {
-        if (preview.complete) r();
-        else preview.onload = r;
+        if (hiddenImage.complete) r();
+        else hiddenImage.onload = r;
     });
 
-    // Run prediction
-    const prediction = await model.predict(preview);
+    const prediction = await model.predict(hiddenImage);
     console.log(prediction);
 
     let benign = 0, malignant = 0;
@@ -108,7 +115,7 @@ document.getElementById("showButton").addEventListener("click", async function()
       ? "🟢 Likely Benign" 
       : "🔴 Likely Malignant";
 
-    // Animate progress bars
+    // Animate bars
     const b = document.getElementById("benignBar");
     const m = document.getElementById("malignantBar");
     b.style.width = `${benign.toFixed(1)}%`;
