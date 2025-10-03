@@ -11,6 +11,7 @@
       text-align: center;
       padding: 50px;
     }
+    h1 { color: #333; }
     #uploadImage, #showButton {
       margin: 10px;
       padding: 12px 25px;
@@ -23,11 +24,18 @@
       transition: background 0.3s;
     }
     #uploadImage:hover, #showButton:hover { background-color: #004d40; }
-    #previewImage { max-width: 300px; margin: 20px 0; border-radius: 12px; border: 2px solid #00796b; }
-    .progress-bar { width: 100%; background: #eee; border-radius: 10px; margin: 10px 0; overflow: hidden; height: 25px; }
-    .progress-fill { height: 100%; color: white; text-align: right; padding-right: 5px; line-height: 25px; border-radius: 10px 0 0 10px; width: 0; transition: width 1s; }
+    #previewImage { 
+      max-width: 300px; 
+      margin: 20px auto; 
+      border-radius: 12px; 
+      border: 2px solid #00796b; 
+      display: none; /* hidden until an image is uploaded */
+    }
+    .progress-bar { width: 80%; margin: 10px auto; background: #eee; border-radius: 10px; overflow: hidden; height: 25px; }
+    .progress-fill { height: 100%; color: white; text-align: right; padding-right: 5px; line-height: 25px; width: 0; transition: width 1s; }
     .benign { background: #4caf50; }
     .malignant { background: #f44336; }
+    #result { font-weight: bold; margin-top: 20px; font-size: 1.2em; }
   </style>
 </head>
 <body>
@@ -37,7 +45,7 @@
 <img id="previewImage" src=""><br>
 <button id="showButton">Show Results</button>
 
-<div id="result">Result will appear here...</div>
+<div id="result">Upload an image to start.</div>
 
 <div class="progress-label">Benign</div>
 <div class="progress-bar"><div id="benignBar" class="progress-fill benign">0%</div></div>
@@ -66,9 +74,10 @@ document.getElementById("uploadImage").addEventListener("change", function(e){
 
     // Show the image immediately
     preview.src = URL.createObjectURL(uploadedFile);
+    preview.style.display = "block";
 
-    // Clear previous results
-    document.getElementById("result").innerHTML = "Result will appear here...";
+    // Reset results
+    document.getElementById("result").innerHTML = "Ready to analyze. Click 'Show Results'.";
     document.getElementById("benignBar").style.width = "0%";
     document.getElementById("benignBar").textContent = "0%";
     document.getElementById("malignantBar").style.width = "0%";
@@ -77,10 +86,15 @@ document.getElementById("uploadImage").addEventListener("change", function(e){
 
 document.getElementById("showButton").addEventListener("click", async function(){
     if(!uploadedFile) { alert("Please upload an image first"); return; }
+    if(!model) { alert("Model still loading. Please wait a moment."); return; }
 
-    // Wait a tiny bit to make sure image is rendered
-    await new Promise(r => setTimeout(r, 100));
+    // Wait until image fully loads
+    await new Promise(r => {
+        if (preview.complete) r();
+        else preview.onload = r;
+    });
 
+    // Run prediction
     const prediction = await model.predict(preview);
     console.log(prediction);
 
@@ -90,19 +104,17 @@ document.getElementById("showButton").addEventListener("click", async function()
         else if(p.className.toLowerCase().includes("malignant")) malignant = p.probability * 100;
     });
 
-    document.getElementById("result").innerHTML = "Prediction Completed";
+    document.getElementById("result").innerHTML = benign > malignant 
+      ? "🟢 Likely Benign" 
+      : "🔴 Likely Malignant";
 
     // Animate progress bars
     const b = document.getElementById("benignBar");
     const m = document.getElementById("malignantBar");
-    b.style.width = "0%";
-    m.style.width = "0%";
-    setTimeout(() => {
-        b.style.width = `${benign.toFixed(1)}%`;
-        b.textContent = `${benign.toFixed(1)}%`;
-        m.style.width = `${malignant.toFixed(1)}%`;
-        m.textContent = `${malignant.toFixed(1)}%`;
-    }, 100);
+    b.style.width = `${benign.toFixed(1)}%`;
+    b.textContent = `${benign.toFixed(1)}%`;
+    m.style.width = `${malignant.toFixed(1)}%`;
+    m.textContent = `${malignant.toFixed(1)}%`;
 });
 </script>
 
