@@ -1,99 +1,110 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Skin Cancer AI</title>
+  <title>AI Skin Cancer Detector</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
-    h1 { color: #333; }
-    #preview { max-width: 300px; margin: 20px auto; display: none; border: 2px solid #ccc; border-radius: 10px; }
-    .bar-container { width: 300px; margin: 10px auto; background: #eee; border-radius: 8px; overflow: hidden; }
-    .bar { height: 25px; text-align: center; color: white; line-height: 25px; }
-    .benign { background: green; width: 0; }
-    .malignant { background: red; width: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #e0f7fa, #ffffff);
+      text-align: center;
+      padding: 50px;
+    }
+    #uploadImage, #showButton {
+      margin: 10px;
+      padding: 12px 25px;
+      border: none;
+      border-radius: 10px;
+      background-color: #00796b;
+      color: white;
+      font-size: 1em;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    #uploadImage:hover, #showButton:hover { background-color: #004d40; }
+    #previewImage { max-width: 300px; margin: 20px 0; border-radius: 12px; border: 2px solid #00796b; }
+    .progress-bar { width: 100%; background: #eee; border-radius: 10px; margin: 10px 0; overflow: hidden; height: 25px; }
+    .progress-fill { height: 100%; color: white; text-align: right; padding-right: 5px; line-height: 25px; border-radius: 10px 0 0 10px; width: 0; transition: width 1s; }
+    .benign { background: #4caf50; }
+    .malignant { background: #f44336; }
   </style>
 </head>
 <body>
-  <h1>Skin Cancer Detection AI</h1>
 
-  <input type="file" id="imageUpload" accept="image/*">
-  <br><br>
-  <img id="preview" alt="Uploaded image preview">
-  <br><br>
-  <button onclick="predictImage()">Show Results</button>
+<h1>AI Skin Cancer Detector</h1>
+<input type="file" id="uploadImage" accept="image/*"><br>
+<img id="previewImage" src=""><br>
+<button id="showButton">Show Results</button>
 
-  <div class="bar-container">
-    <div class="bar benign" id="benign-bar">Benign: 0%</div>
-  </div>
-  <div class="bar-container">
-    <div class="bar malignant" id="malignant-bar">Malignant: 0%</div>
-  </div>
+<div id="result">Result will appear here...</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
-  <script>
-    const URL = "./"; // model files are in the same folder
-    let model, maxPredictions;
+<div class="progress-label">Benign</div>
+<div class="progress-bar"><div id="benignBar" class="progress-fill benign">0%</div></div>
+<div class="progress-label">Malignant</div>
+<div class="progress-bar"><div id="malignantBar" class="progress-fill malignant">0%</div></div>
 
-    async function loadModel() {
-      const modelURL = URL + "model.json";
-      const metadataURL = URL + "metadata.json";
-      model = await tmImage.load(modelURL, metadataURL);
-      maxPredictions = model.getTotalClasses();
-    }
+<script>
+const URL = "./"; // model.json, metadata.json, weights.bin are in the same folder
+let model, maxPredictions;
 
-    loadModel();
+async function loadModel() {
+    const modelURL = URL + "model.json";
+    const metadataURL = URL + "metadata.json";
+    model = await tmImage.load(modelURL, metadataURL);
+    maxPredictions = model.getTotalClasses();
+    console.log("Model loaded");
+}
+loadModel();
 
-    // Show uploaded image preview
-    const imageUpload = document.getElementById("imageUpload");
-    const preview = document.getElementById("preview");
-    let uploadedImage = null;
+let uploadedFile = null;
+const preview = document.getElementById("previewImage");
 
-    imageUpload.addEventListener("change", (event) => {
-      const file = event.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          preview.src = e.target.result;
-          preview.style.display = "block";
-          uploadedImage = new Image();
-          uploadedImage.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      }
+document.getElementById("uploadImage").addEventListener("change", function(e){
+    uploadedFile = e.target.files[0];
+    if (!uploadedFile) return;
+
+    // Show the image immediately
+    preview.src = URL.createObjectURL(uploadedFile);
+
+    // Clear previous results
+    document.getElementById("result").innerHTML = "Result will appear here...";
+    document.getElementById("benignBar").style.width = "0%";
+    document.getElementById("benignBar").textContent = "0%";
+    document.getElementById("malignantBar").style.width = "0%";
+    document.getElementById("malignantBar").textContent = "0%";
+});
+
+document.getElementById("showButton").addEventListener("click", async function(){
+    if(!uploadedFile) { alert("Please upload an image first"); return; }
+
+    // Wait a tiny bit to make sure image is rendered
+    await new Promise(r => setTimeout(r, 100));
+
+    const prediction = await model.predict(preview);
+    console.log(prediction);
+
+    let benign = 0, malignant = 0;
+    prediction.forEach(p => {
+        if(p.className.toLowerCase().includes("benign")) benign = p.probability * 100;
+        else if(p.className.toLowerCase().includes("malignant")) malignant = p.probability * 100;
     });
 
-    async function predictImage() {
-      if (!uploadedImage || !model) {
-        alert("Please upload an image and wait for the model to load.");
-        return;
-      }
+    document.getElementById("result").innerHTML = "Prediction Completed";
 
-      // Wait until the image is loaded
-      await new Promise((resolve) => {
-        if (uploadedImage.complete) resolve();
-        else uploadedImage.onload = resolve;
-      });
+    // Animate progress bars
+    const b = document.getElementById("benignBar");
+    const m = document.getElementById("malignantBar");
+    b.style.width = "0%";
+    m.style.width = "0%";
+    setTimeout(() => {
+        b.style.width = `${benign.toFixed(1)}%`;
+        b.textContent = `${benign.toFixed(1)}%`;
+        m.style.width = `${malignant.toFixed(1)}%`;
+        m.textContent = `${malignant.toFixed(1)}%`;
+    }, 100);
+});
+</script>
 
-      const prediction = await model.predict(uploadedImage);
-
-      let benignProb = 0;
-      let malignantProb = 0;
-
-      prediction.forEach((p) => {
-        if (p.className.toLowerCase().includes("benign")) {
-          benignProb = p.probability;
-        } else if (p.className.toLowerCase().includes("malignant")) {
-          malignantProb = p.probability;
-        }
-      });
-
-      document.getElementById("benign-bar").style.width = (benignProb * 100) + "%";
-      document.getElementById("benign-bar").textContent = "Benign: " + (benignProb * 100).toFixed(1) + "%";
-
-      document.getElementById("malignant-bar").style.width = (malignantProb * 100) + "%";
-      document.getElementById("malignant-bar").textContent = "Malignant: " + (malignantProb * 100).toFixed(1) + "%";
-    }
-  </script>
 </body>
 </html>
